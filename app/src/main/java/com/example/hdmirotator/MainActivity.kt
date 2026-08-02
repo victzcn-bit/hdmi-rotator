@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 
 class MainActivity : AppCompatActivity() {
 
@@ -29,7 +30,6 @@ class MainActivity : AppCompatActivity() {
             resultCode = result.resultCode
             resultData = result.data
 
-            // 1. 优先启动前台服务（防止 Android 14+ 报错闪退）
             val serviceIntent = Intent(this, MediaProjectionService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent)
@@ -37,7 +37,6 @@ class MainActivity : AppCompatActivity() {
                 startService(serviceIntent)
             }
 
-            // 2. 服务启动后再获取 MediaProjection
             mediaProjection = projectionManager.getMediaProjection(resultCode, resultData!!)
             startPresentationIfReady()
         } else {
@@ -51,6 +50,13 @@ class MainActivity : AppCompatActivity() {
 
         displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
         projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+
+        val switchRotate = findViewById<SwitchCompat>(R.id.switchRotate)
+        
+        // 监听开关状态切换
+        switchRotate.setOnCheckedChangeListener { _, isChecked ->
+            hdmiPresentation?.setRotation(if (isChecked) 90f else 0f)
+        }
 
         displayManager.registerDisplayListener(displayListener, null)
         screenCaptureLauncher.launch(projectionManager.createScreenCaptureIntent())
@@ -76,7 +82,10 @@ class MainActivity : AppCompatActivity() {
         if (displays.isNotEmpty()) {
             val externalDisplay = displays[0]
             if (hdmiPresentation == null) {
-                hdmiPresentation = HdmiPresentation(this, externalDisplay, proj)
+                val switchRotate = findViewById<SwitchCompat>(R.id.switchRotate)
+                val initialAngle = if (switchRotate.isChecked) 90f else 0f
+                
+                hdmiPresentation = HdmiPresentation(this, externalDisplay, proj, initialAngle)
                 hdmiPresentation?.show()
             }
         } else {
