@@ -2,11 +2,12 @@ package com.example.hdmirotator
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.os.Bundle
-import android.view.Display
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -18,11 +19,26 @@ class MainActivity : AppCompatActivity() {
     private var mediaProjection: MediaProjection? = null
     private var hdmiPresentation: HdmiPresentation? = null
 
+    private var resultCode = 0
+    private var resultData: Intent? = null
+
     private val screenCaptureLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            mediaProjection = projectionManager.getMediaProjection(result.resultCode, result.data!!)
+            resultCode = result.resultCode
+            resultData = result.data
+
+            // 1. 优先启动前台服务（防止 Android 14+ 报错闪退）
+            val serviceIntent = Intent(this, MediaProjectionService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+
+            // 2. 服务启动后再获取 MediaProjection
+            mediaProjection = projectionManager.getMediaProjection(resultCode, resultData!!)
             startPresentationIfReady()
         } else {
             Toast.makeText(this, "需要屏幕录制权限才能将画面输出至外屏", Toast.LENGTH_SHORT).show()
@@ -36,10 +52,7 @@ class MainActivity : AppCompatActivity() {
         displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
         projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
-        // 监听 HDMI / 外接显示屏连接状态
         displayManager.registerDisplayListener(displayListener, null)
-
-        // 启动时请求录屏抓取权限
         screenCaptureLauncher.launch(projectionManager.createScreenCaptureIntent())
     }
 
@@ -59,7 +72,6 @@ class MainActivity : AppCompatActivity() {
     private fun startPresentationIfReady() {
         val proj = mediaProjection ?: return
 
-        // 查找外接 HDMI 显示屏
         val displays = displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
         if (displays.isNotEmpty()) {
             val externalDisplay = displays[0]
@@ -77,5 +89,6 @@ class MainActivity : AppCompatActivity() {
         displayManager.unregisterDisplayListener(displayListener)
         hdmiPresentation?.dismiss()
         mediaProjection?.stop()
+        stopService(Intent(this, MediaProjectionService::class.java))
     }
 }
