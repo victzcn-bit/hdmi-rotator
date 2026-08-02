@@ -9,7 +9,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="HDMI 屏幕旋转输出控制台"
+        android:text="ZhaoFuchen - HDMI 输出控制"
         android:textSize="20sp"
         android:textStyle="bold" />
 
@@ -17,7 +17,18 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:text="手机屏幕已实时抓取并在外接 HDMI 屏幕上旋转 90 度输出。切换或使用其他 App 不影响外屏显示。"
+        android:gravity="center"
+        android:text="开启录屏权限后，手机屏幕将实时投射至 HDMI 监视器。"
         android:textColor="#666666" />
+
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/switchRotate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:checked="true"
+        android:text="外屏画面旋转 90° "
+        android:textSize="18sp"
+        android:textStyle="bold" />
 
 </LinearLayout>
