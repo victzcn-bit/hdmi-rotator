@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <androidx.camera.view.PreviewView
+        android:id="@+id/previewViewLocal"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:id="@+id/layoutStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#D9000000"
+        android:padding="12dp"
+        android:layout_margin="12dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="状态: 硬件监听就绪 (等待投屏线)"
+            android:textColor="#00FF00"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/containerVirtualDisplay"
+        android:layout_width="240dp"
+        android:layout_height="135dp"
+        android:background="#222222"
+        android:padding="2dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/layoutStatus"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="12dp">
+
+        <SurfaceView
+            android:id="@+id/surfaceVirtualDisplay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="[监视器 1:1 仿真器]"
+            android:textColor="#FFCC00"
+            android:textSize="10sp"
+            android:background="#A0000000"
+            android:padding="4dp" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/panelControl"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#F2111111"
+        android:padding="16dp"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <Button
+            android:id="@+id/btnToggleEmulator"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:textSize="14sp"
+            android:text="开启零硬件仿真验证"
+            android:textStyle="bold"
+            android:backgroundTint="#FF5722"
+            android:layout_marginBottom="12dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnRotate"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="48dp"
+                android:textSize="13sp"
+                android:text="画面旋转: 90°"
+                android:layout_marginEnd="8dp"/>
+
+            <Button
+                android:id="@+id/btnScaleMode"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="48dp"
+                android:textSize="13sp"
+                android:text="填充模式: 裁剪满屏" />
+        </LinearLayout>
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
