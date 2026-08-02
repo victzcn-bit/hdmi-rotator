@@ -2,107 +2,109 @@ package com.example.hdmirotator
 
 import android.app.Presentation
 import android.content.Context
-import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.SurfaceTexture
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
+import android.media.projection.MediaProjection
 import android.os.Bundle
 import android.view.Display
+import android.view.Surface
+import android.view.TextureView
 import android.view.ViewGroup
-import android.view.WindowManager
 import android.widget.FrameLayout
-import androidx.camera.view.PreviewView
 
 class HdmiPresentation(
     outerContext: Context,
-    display: Display
-) : Presentation(outerContext, display) {
+    display: Display,
+    private val mediaProjection: MediaProjection
+) : Presentation(outerContext, display), TextureView.SurfaceTextureListener {
 
-    lateinit var previewViewHdmi: PreviewView
-        private set
-
-    var currentRotation = 90f
-        private set
-
-    var isCropMode = true
-        private set
+    private lateinit var textureView: TextureView
+    private var virtualDisplay: VirtualDisplay? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 强行保持副屏常亮，突破系统休眠限制
-        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // 【核心优化】：纯代码构建 UI，彻底杜绝 R.layout 找不到导致的低级崩溃
-        val rootLayout = FrameLayout(context).apply {
-            setBackgroundColor(Color.BLACK)
+        val root = FrameLayout(context).apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
+            setBackgroundColor(0xFF000000.toInt()) // 纯黑背景
         }
 
-        previewViewHdmi = PreviewView(context).apply {
-            scaleType = PreviewView.ScaleType.FIT_CENTER
+        textureView = TextureView(context).apply {
             layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
             )
+            surfaceTextureListener = this@HdmiPresentation
         }
 
-        rootLayout.addView(previewViewHdmi)
-        setContentView(rootLayout)
-
-        // 【核心优化】：极其硬核的尺寸变动监听，无论系统怎么魔改多窗口，只要尺寸变了瞬间重算矩阵
-        previewViewHdmi.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
-            if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
-                applyTransformSafe()
-            }
-        }
+        root.addView(textureView)
+        setContentView(root)
     }
 
-    fun cycleRotation(): Float {
-        currentRotation = when (currentRotation) {
-            90f -> 180f
-            180f -> 270f
-            270f -> 0f
-            else -> 90f
-        }
-        applyTransformSafe()
-        return currentRotation
+    override fun onSurfaceTextureAvailable(surfaceTexture: SurfaceTexture, width: Int, height: Int) {
+        val metrics = context.resources.displayMetrics
+        val phoneWidth = metrics.widthPixels
+        val phoneHeight = metrics.heightPixels
+        val density = metrics.densityDpi
+
+        // 1. 创建虚拟显示源，抓取手机屏幕
+        val surface = Surface(surfaceTexture)
+        virtualDisplay = mediaProjection.createVirtualDisplay(
+            "HdmiRotatorDisplay",
+            phoneWidth,
+            phoneHeight,
+            density,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            surface,
+            null,
+            null
+        )
+
+        // 2. 旋转 90 度并适应外接监视器比例
+        apply90DegreeRotation(width, height, phoneWidth, phoneHeight)
     }
 
-    fun toggleScaleMode(): String {
-        isCropMode = !isCropMode
-        applyTransformSafe()
-        return if (isCropMode) "裁剪满屏" else "原始比例"
+    private fun apply90DegreeRotation(viewWidth: Int, viewHeight: Int, phoneWidth: Int, phoneHeight: Int) {
+        val matrix = Matrix()
+        val centerX = viewWidth / 2f
+        val centerY = viewHeight / 2f
+
+        // 围绕中心旋转 90 度
+        matrix.postRotate(90f, centerX, centerY)
+
+        // 旋转后宽高互换
+        val rotatedWidth = phoneHeight.toFloat()
+        val rotatedHeight = phoneWidth.toFloat()
+
+        // 自动计算缩放比，保持比例并适应外屏
+        val scaleX = viewWidth.toFloat() / rotatedWidth
+        val scaleY = viewHeight.toFloat() / rotatedHeight
+        val scale = minOf(scaleX, scaleY)
+
+        matrix.postScale(
+            scale * (rotatedWidth / viewWidth),
+            scale * (rotatedHeight / viewHeight),
+            centerX,
+            centerY
+        )
+
+        textureView.setTransform(matrix)
     }
 
-    /**
-     * 工业级图形安全变换矩阵 (绝对无崩溃、无 NaN)
-     */
-    private fun applyTransformSafe() {
-        val parent = previewViewHdmi.parent as? ViewGroup ?: return
-        val pW = parent.width.toFloat()
-        val pH = parent.height.toFloat()
+    override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
+    override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+        virtualDisplay?.release()
+        return true
+    }
+    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
 
-        // 拦截未完成测量的无效状态
-        if (pW <= 0f || pH <= 0f) return
-
-        previewViewHdmi.rotation = currentRotation
-
-        if (currentRotation == 90f || currentRotation == 270f) {
-            val aspect = pW / pH
-            var scale = if (isCropMode) {
-                if (aspect > 1.0f) aspect else 1.0f / aspect
-            } else {
-                1.0f
-            }
-
-            // 拦截极其极端的计算错误
-            if (scale.isNaN() || scale.isInfinite() || scale <= 0f) scale = 1.0f
-
-            previewViewHdmi.scaleX = scale
-            previewViewHdmi.scaleY = scale
-        } else {
-            previewViewHdmi.scaleX = 1.0f
-            previewViewHdmi.scaleY = 1.0f
-        }
+    override fun onStop() {
+        super.onStop()
+        virtualDisplay?.release()
     }
 }
